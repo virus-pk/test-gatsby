@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Validate branch name
         shell: bash
         run: |
@@ -26,15 +28,10 @@ jobs:
       - name: Validate commit messages include Jira key
         shell: bash
         run: |
+          set -euo pipefail
           KEY_REGEX='[A-Z]+-[0-9]+'
-          RANGE="${{ github.event.before }}..${{ github.sha }}"
-          if git rev-parse -q --verify "${{ github.event.before }}" >/dev/null; then
-            COMMITS=$(git log --pretty=%s "$RANGE")
-          else
-            COMMITS=$(git log -1 --pretty=%s)
-          fi
-          echo "$COMMITS" | while read -r msg; do
-            [ -z "$msg" ] && continue
+          COMMITS=$(git log --pretty=%s -n 20)
+          echo "$COMMITS" | awk 'NF' | while read -r msg; do
             if ! [[ "$msg" =~ $KEY_REGEX ]]; then
               echo "Commit message missing Jira key: $msg"
               exit 1
