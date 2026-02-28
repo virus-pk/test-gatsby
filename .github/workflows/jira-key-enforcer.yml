@@ -1,0 +1,51 @@
+name: Jira Key Enforcement
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate branch name
+        shell: bash
+        run: |
+          EVENT="${{ github.event_name }}"
+          if [ "$EVENT" = "pull_request" ]; then
+            BRANCH="${{ github.head_ref }}"
+          else
+            REF="${GITHUB_REF#refs/heads/}"
+            BRANCH="$REF"
+          fi
+          if ! [[ "$BRANCH" =~ ^[A-Z]+-[0-9]+- ]]; then
+            echo "Branch '$BRANCH' must start with Jira key (e.g., KAN-1-)."
+            exit 1
+          fi
+      - name: Validate commit messages include Jira key
+        shell: bash
+        run: |
+          KEY_REGEX='[A-Z]+-[0-9]+'
+          RANGE="${{ github.event.before }}..${{ github.sha }}"
+          if git rev-parse -q --verify "${{ github.event.before }}" >/dev/null; then
+            COMMITS=$(git log --pretty=%s "$RANGE")
+          else
+            COMMITS=$(git log -1 --pretty=%s)
+          fi
+          echo "$COMMITS" | while read -r msg; do
+            [ -z "$msg" ] && continue
+            if ! [[ "$msg" =~ $KEY_REGEX ]]; then
+              echo "Commit message missing Jira key: $msg"
+              exit 1
+            fi
+          done
+      - name: Validate PR title includes Jira key
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          if ! [[ "$TITLE" =~ [A-Z]+-[0-9]+ ]]; then
+            echo "PR title missing Jira key: $TITLE"
+            exit 1
+          fi
