@@ -1,0 +1,62 @@
+name: Simulated Deployment for Jira
+on:
+  push:
+    branches:
+      - KAN-1-fix-minimatch-redos
+      - master
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+jobs:
+  deploy_preview:
+    if: github.ref == 'refs/heads/KAN-1-fix-minimatch-redos' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const ref = (context.payload.ref || '').replace('refs/heads/','') || 'KAN-1-fix-minimatch-redos';
+            const environment = 'kan-1-preview';
+            const desc = 'KAN-1 simulated deployment to enable Jira Deployments view';
+            const dep = await github.rest.repos.createDeployment({
+              owner, repo, ref, environment, description: desc,
+              auto_merge: false, required_contexts: []
+            });
+            await github.rest.repos.createDeploymentStatus({
+              owner, repo, deployment_id: dep.data.id, state: 'in_progress'
+            });
+            await github.rest.repos.createDeploymentStatus({
+              owner, repo, deployment_id: dep.data.id, state: 'success',
+              environment_url: 'http://localhost'
+            });
+  deploy_production:
+    if: github.ref == 'refs/heads/master' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const ref = (context.payload.ref || '').replace('refs/heads/','') || 'master';
+            const environment = 'kan-1-local-production';
+            const desc = 'KAN-1 simulated local production deployment (localhost)';
+            const dep = await github.rest.repos.createDeployment({
+              owner, repo, ref, environment, description: desc,
+              auto_merge: false, required_contexts: []
+            });
+            await github.rest.repos.createDeploymentStatus({
+              owner, repo, deployment_id: dep.data.id, state: 'in_progress'
+            });
+            await github.rest.repos.createDeploymentStatus({
+              owner, repo, deployment_id: dep.data.id, state: 'success',
+              environment_url: 'http://localhost'
+            });
